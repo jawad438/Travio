@@ -1,0 +1,6 @@
+{
+  "name": "Travio",
+  "description": "A skill exchange platform where people teach each other. No fees, no courses — just real people swap-learning 1-on-1.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

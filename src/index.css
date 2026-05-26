@@ -1,0 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Instrument+Serif:ital,wght@0,400;0,900;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --color-primary: #1D9E75;
+  --color-primary-hover: #158561;
+  --color-primary-light: #e8f6f1;
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+.font-serif {
+  letter-spacing: 0.025em;
+}
+
