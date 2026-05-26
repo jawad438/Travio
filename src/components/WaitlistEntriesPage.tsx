@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, 
   Search, 
@@ -13,7 +13,15 @@ import {
   Star,
   CheckCircle,
   Clock,
-  Briefcase
+  Briefcase,
+  Lock,
+  ArrowRight,
+  UserPlus,
+  Compass,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  LogOut
 } from 'lucide-react';
 
 interface WaitlistEntry {
@@ -34,6 +42,36 @@ export default function WaitlistEntriesPage({ onBackToLanding, userIp }: Waitlis
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // Email Authentication States
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    return localStorage.getItem('travio_admin_session') === 'true';
+  });
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+
+  // Pre-seed default master administrator account if none exists
+  useEffect(() => {
+    try {
+      const accounts = JSON.parse(localStorage.getItem('travio_admin_accounts') || '[]');
+      const hasMaster = accounts.some((acc: any) => acc.email.toLowerCase() === 'admin@travio.com');
+      if (!hasMaster) {
+        accounts.push({
+          email: 'admin@travio.com',
+          password: 'adminpassword',
+          role: 'master'
+        });
+        localStorage.setItem('travio_admin_accounts', JSON.stringify(accounts));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   // Loads entries from localStorage
   const loadEntries = () => {
     try {
@@ -45,8 +83,10 @@ export default function WaitlistEntriesPage({ onBackToLanding, userIp }: Waitlis
   };
 
   useEffect(() => {
-    loadEntries();
-  }, []);
+    if (isAuthorized) {
+      loadEntries();
+    }
+  }, [isAuthorized]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -158,6 +198,243 @@ export default function WaitlistEntriesPage({ onBackToLanding, userIp }: Waitlis
     triggerToast('CSV file downloaded.');
   };
 
+  // Admin account authentication processing
+  const handleAuthSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    
+    const email = authEmail.trim();
+    const password = authPassword;
+
+    if (!email || !password) {
+      setAuthError('Please complete all required fields.');
+      return;
+    }
+
+    setIsAuthLoading(true);
+
+    setTimeout(() => {
+      try {
+        const accounts = JSON.parse(localStorage.getItem('travio_admin_accounts') || '[]');
+
+        if (isSignUpMode) {
+          // Signup code
+          if (password.length < 6) {
+            setAuthError('Password must be at least 6 characters long.');
+            setIsAuthLoading(false);
+            return;
+          }
+          if (password !== authConfirmPassword) {
+            setAuthError('Passwords do not match.');
+            setIsAuthLoading(false);
+            return;
+          }
+
+          const alreadyExists = accounts.some((acc: any) => acc.email.toLowerCase() === email.toLowerCase());
+          if (alreadyExists) {
+            setAuthError('This email is already registered. Please login instead.');
+            setIsAuthLoading(false);
+            return;
+          }
+
+          // Save account
+          const newAccount = { email, password, role: 'moderator' };
+          accounts.push(newAccount);
+          localStorage.setItem('travio_admin_accounts', JSON.stringify(accounts));
+          
+          // Log in instantly
+          localStorage.setItem('travio_admin_session', 'true');
+          localStorage.setItem('travio_admin_user', email);
+          setIsAuthorized(true);
+          triggerToast('Admin account registered! Signed in.');
+        } else {
+          // Login code
+          const matched = accounts.find(
+            (acc: any) => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
+          );
+
+          if (matched) {
+            localStorage.setItem('travio_admin_session', 'true');
+            localStorage.setItem('travio_admin_user', email);
+            setIsAuthorized(true);
+            triggerToast('Authentication successful!');
+          } else {
+            setAuthError('Invalid credentials. Check your email and password.');
+          }
+        }
+      } catch (err) {
+        setAuthError('An error occurred. Please try again.');
+      }
+      setIsAuthLoading(false);
+    }, 600);
+  };
+
+  const handleLogoutAdmin = () => {
+    localStorage.removeItem('travio_admin_session');
+    localStorage.removeItem('travio_admin_user');
+    setIsAuthorized(false);
+    triggerToast('Logged out of admin database.');
+  };
+
+  // Render Gate if unauthorized
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen pt-28 pb-16 flex items-center justify-center px-6 relative bg-white dark:bg-[#0B0F12] overflow-hidden transition-colors duration-300">
+        {/* Decorative background visual blurs */}
+        <div className="absolute top-[20%] left-[10%] w-[350px] h-[350px] rounded-full bg-primary/5 dark:bg-primary/5 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[20%] right-[10%] w-[300px] h-[300px] rounded-full bg-emerald-500/5 dark:bg-emerald-500/5 blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md relative z-10 text-left">
+          
+          <button
+            onClick={onBackToLanding}
+            className="inline-flex items-center gap-2 group text-xs font-bold text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-[#1D9E75] transition-colors mb-8 cursor-pointer"
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            <span>Return to Landing</span>
+          </button>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="bg-white/85 dark:bg-slate-900/40 backdrop-blur-xl border border-gray-150 dark:border-slate-800/80 rounded-3xl p-8 shadow-2xl relative"
+          >
+            <div className="space-y-6">
+              <div className="text-center">
+                <span className="font-mono text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 inline-flex items-center gap-1.5">
+                  <ShieldAlert className="h-3 w-3" />
+                  <span>Secure Access Gate</span>
+                </span>
+                
+                <h3 className="font-serif text-2.5xl font-black text-gray-900 dark:text-white mt-4 tracking-wide">
+                  {isSignUpMode ? 'Register Admin Account' : 'Database Email Sign In'}
+                </h3>
+                
+                <p className="font-sans text-xs text-gray-450 dark:text-gray-450 mt-1 max-w-xs mx-auto">
+                  {isSignUpMode 
+                    ? 'Create modular email credentials to access the verified peer interest waitlist.' 
+                    : 'Authenticating matching database viewer. Standard Google OAuth is deactivated.'}
+                </p>
+              </div>
+
+              {authError && (
+                <div className="p-3 text-xs bg-red-50 dark:bg-red-950/20 text-red-650 dark:text-red-400 border border-red-150 dark:border-red-900/30 rounded-xl leading-relaxed text-center font-medium">
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {/* Email Address */}
+                <div className="space-y-1.5">
+                  <label className="font-sans text-xs font-bold text-gray-500 dark:text-gray-450 uppercase tracking-widest block">
+                    Admin Email address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="email"
+                      required
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      placeholder="admin@travio.com"
+                      className="w-full bg-gray-50 hover:bg-gray-100/50 dark:bg-slate-950 dark:hover:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-xl pl-10.5 pr-4 py-3 text-xs focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary font-sans font-semibold text-gray-800 dark:text-white transition-all transition-colors duration-200"
+                    />
+                  </div>
+                </div>
+
+                {/* Password field */}
+                <div className="space-y-1.5">
+                  <label className="font-sans text-xs font-bold text-gray-500 dark:text-gray-450 uppercase tracking-widest block">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-gray-50 hover:bg-gray-100/50 dark:bg-slate-950 dark:hover:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-xl pl-10.5 pr-11 py-3 text-xs focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary font-sans font-semibold text-gray-800 dark:text-white transition-all transition-colors duration-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conditional Confirm Password */}
+                {isSignUpMode && (
+                  <div className="space-y-1.5 animate-slide-up">
+                    <label className="font-sans text-xs font-bold text-gray-500 dark:text-gray-450 uppercase tracking-widest block">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={authConfirmPassword}
+                        onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-gray-50 hover:bg-gray-100/50 dark:bg-slate-950 dark:hover:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-xl pl-10.5 pr-4 py-3 text-xs focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary font-sans font-semibold text-gray-800 dark:text-white transition-all transition-colors duration-200"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Password master demo helper hint */}
+                {!isSignUpMode && (
+                  <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-[11px] leading-normal text-amber-600/90 dark:text-amber-400/95 font-medium">
+                    🏆 <strong className="font-bold text-gray-900 dark:text-white">Admin Credentials:</strong> You can sign up with any email, or sign in using:<br/>
+                    Email: <span className="font-mono bg-amber-500/10 px-1 py-0.2 rounded font-black text-gray-900 dark:text-white">admin@travio.com</span><br/>
+                    Password: <span className="font-mono bg-amber-500/10 px-1 py-0.2 rounded font-black text-gray-900 dark:text-white">adminpassword</span>
+                  </div>
+                )}
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={isAuthLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-[#15805d] text-white py-3 px-4 rounded-xl font-sans font-bold text-xs transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isAuthLoading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      {isSignUpMode ? <UserPlus className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      <span>{isSignUpMode ? 'Register Credential' : 'Secure Authenticate'}</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Mode Toggle Button link */}
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUpMode(!isSignUpMode);
+                    setAuthError('');
+                  }}
+                  className="text-xs text-primary hover:text-primary-hover hover:underline font-bold transition-all"
+                >
+                  {isSignUpMode ? 'Already have credentials? Sign In' : "Don't have an admin login? Sign Up"}
+                </button>
+              </div>
+
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pt-28 pb-16 px-6 max-w-7xl mx-auto text-gray-900 dark:text-gray-100 transition-colors duration-300">
       
@@ -172,9 +449,18 @@ export default function WaitlistEntriesPage({ onBackToLanding, userIp }: Waitlis
             <ShieldAlert className="h-3 w-3" />
             <span>Authenticated Client Registry</span>
           </div>
-          <h1 className="font-serif text-4xl sm:text-5xl font-extrabold tracking-wide text-gray-900 dark:text-white leading-none">
-            Waitlist Database
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="font-serif text-4xl sm:text-5xl font-extrabold tracking-wide text-gray-900 dark:text-white leading-none">
+              Waitlist Database
+            </h1>
+            <button
+              onClick={handleLogoutAdmin}
+              className="text-[10px] bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-500 hover:text-red-500 dark:text-gray-400 font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <LogOut className="h-3 w-3" />
+              <span>Lock DB</span>
+            </button>
+          </div>
           <p className="font-sans text-sm text-gray-500 dark:text-gray-400 max-w-xl">
             This module has been unlocked automatically because your connection IP address or environment matched the target whitelist <code className="bg-gray-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono font-bold text-primary">{userIp || '105.110.147.51'}</code>.
           </p>
